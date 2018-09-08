@@ -1,0 +1,85 @@
+{
+	"format_on_save": true,
+
+	"format": {
+		"jsx": {
+			// the file extension will use this formatter
+
+			/* the command line tool to which we can append a file path to format it */
+			"command": ["prettier", "--config", "--write"],
+
+			/* optional: Sublime Text syntax name for when the file has no extension */
+			"syntax contains": "javascript",
+
+			/*	optional: Even if we know that a file is a json, like for example ".prettierrc"
+				The command line tool may not know ".prettierrc" is a json
+				and will not be able to format it throwing some error. Example
+
+				> prettier --write -- ./.prettierrc
+
+				By looking for the error they give in stderr we can "try again"
+				on a temporal file to include the "obvious" extension
+				for example changing it to: ".prettierrc.json" giving:
+
+				> prettier --write -- ./.prettierrc.json
+
+				putting the result back in ".prettierrc"
+			*/
+			"on unrecognised": "No parser could be inferred",
+
+			/* optional: you can pretend to be other extension if that may helps you*/
+			"pretend to be": "jsx"
+		},
+		"js": {
+			"syntax contains": "javascript",
+			"pretend to be": "jsx",
+			"command": ["prettier", "--config", "--write"],
+			"on unrecognised": "No parser could be inferred"
+		},
+		"json": {
+			"syntax contains": "json",
+			"command": ["prettier", "--config", "--write"],
+			"on unrecognised": "No parser could be inferred"
+		},
+		"css": {
+			"syntax contains": "css",
+			"command": ["prettier", "--config", "--write"],
+			"on unrecognised": "No parser could be inferred"
+		},
+		"php": {
+			"syntax contains": "php",
+			"command": ["prettier", "--config", "--write"],
+			"on unrecognised": "No parser could be inferred"
+		},
+		"py": {
+			"syntax contains": "python",
+			"command": ["black"],
+			"on unrecognised": "error: cannot format"
+		},
+		"html": {
+			"syntax contains": "html",
+			"command": ["js-beautify", "-r"],
+			"on unrecognised": "[error]"
+		},
+		"xhtml": {
+			"syntax contains": "html",
+			"command": ["js-beautify", "-r"],
+			"on unrecognised": "[error]"
+		},
+		"xml": {
+			"syntax contains": "xml",
+			"command": ["js-beautify", "-r"],
+			"on unrecognised": "[error]"
+		},
+		"rdf": {
+			"syntax contains": "xml",
+			"command": ["js-beautify", "-r"],
+			"on unrecognised": "[error]"
+		},
+		"svg": {
+			"syntax contains": "xml",
+			"command": ["js-beautify", "-r"],
+			"on unrecognised": "[error]"
+		}
+	}
+}
