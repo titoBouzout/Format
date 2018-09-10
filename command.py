@@ -104,6 +104,8 @@ class Format(threading.Thread):
                     "--",
                     self.view.file_name(),
                 ]
+                for k, v in enumerate(self.command):
+                    self.command[k] = self.expand(self.command[k])
                 p = self.cli(self.command)
                 if p["returncode"] != 0:
                     if (
@@ -174,6 +176,8 @@ class Format(threading.Thread):
             f.write(bytes(text, "UTF-8"))
             f.close()
             self.command = Formatters[self.extension]["command"] + ["--", temporal]
+            for k, v in enumerate(self.command):
+                self.command[k] = self.expand(self.command[k])
             p = self.cli(self.command)
 
             if p["returncode"] != 0:
@@ -276,3 +280,10 @@ class Format(threading.Thread):
                     print("Format Code:", str(i).strip())
             else:
                 print("Format Code:", str(item).strip())
+
+    def expand(self, s):
+        home = os.path.expanduser("~") + "/"
+        s = s.replace("~/", home)
+        for k, v in list(os.environ.items()):
+            s = s.replace("%" + k + "%", v).replace("%" + k.lower() + "%", v)
+        return s

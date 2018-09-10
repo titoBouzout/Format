@@ -6,7 +6,7 @@
 			// the file extension will use this formatter
 
 			/* the command line tool to which we can append a file path to format it */
-			"command": ["prettier", "--config", "--write"],
+			"command": ["prettier", "--config", "~/.prettierrc", "--write"],
 
 			/* optional: Sublime Text syntax name for when the file has no extension */
 			"syntax contains": "javascript",
@@ -33,22 +33,22 @@
 		"js": {
 			"syntax contains": "javascript",
 			"pretend to be": "jsx",
-			"command": ["prettier", "--config", "--write"],
+			"command": ["prettier", "--config", "~/.prettierrc", "--write"],
 			"on unrecognised": "No parser could be inferred"
 		},
 		"json": {
 			"syntax contains": "json",
-			"command": ["prettier", "--config", "--write"],
+			"command": ["prettier", "--config", "~/.prettierrc", "--write"],
 			"on unrecognised": "No parser could be inferred"
 		},
 		"css": {
 			"syntax contains": "css",
-			"command": ["prettier", "--config", "--write"],
+			"command": ["prettier", "--config", "~/.prettierrc", "--write"],
 			"on unrecognised": "No parser could be inferred"
 		},
 		"php": {
 			"syntax contains": "php",
-			"command": ["prettier", "--config", "--write"],
+			"command": ["prettier", "--config", "~/.prettierrc", "--write"],
 			"on unrecognised": "No parser could be inferred"
 		},
 		"py": {
