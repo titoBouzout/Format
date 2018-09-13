@@ -1,5 +1,13 @@
 [
 	{
+		"caption": "File",
+		"mnemonic": "F",
+		"id": "file",
+		"children": [
+			{ "command": "format_code_save_no_format", "caption": "Save Without Formatting" }
+		]
+	},
+	{
 		"id": "preferences",
 		"children": [
 			{

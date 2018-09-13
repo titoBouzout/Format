@@ -5,25 +5,31 @@ import tempfile
 import threading
 from .edit.Edit import Edit as Edit
 
-Formatters = {}
-format_on_save = True
-counter = 0
-already_shown = {}
-binary_file_patterns = []
+
+class Globals:
+    pass
+
+
+Globals = Globals()
+Globals.Formatters = {}
+Globals.format_on_save = True
+Globals.save_no_format = False
+Globals.counter = 0
+Globals.already_shown = {}
+Globals.binary_file_patterns = []
 
 
 def plugin_loaded():
-    global Formatters, format_on_save, binary_file_patterns
     s = sublime.load_settings("Format.sublime-settings")
     s.clear_on_change("reload")
     s.add_on_change("reload", lambda: plugin_loaded())
-    Formatters = s.get("format", {})
-    format_on_save = s.get("format_on_save", True)
+    Globals.Formatters = s.get("format", {})
+    Globals.format_on_save = s.get("format_on_save", True)
 
     s = sublime.load_settings("Preferences.sublime-settings")
     s.clear_on_change("reload")
     s.add_on_change("reload", lambda: plugin_loaded())
-    binary_file_patterns = s.get("binary_file_patterns", [])
+    Globals.binary_file_patterns = s.get("binary_file_patterns", [])
 
 
 for path in os.environ["PATH"].split(";"):
@@ -38,17 +44,23 @@ class format_code(sublime_plugin.TextCommand):
 
 class format_code_toggle(sublime_plugin.WindowCommand):
     def run(self):
-        global format_on_save
-        format_on_save = not format_on_save
+        Globals.format_on_save = not Globals.format_on_save
         s = sublime.load_settings("Format.sublime-settings")
-        s.set("format_on_save", format_on_save)
+        s.set("format_on_save", Globals.format_on_save)
         sublime.save_settings("Format.sublime-settings")
 
 
 class format_code_on_save(sublime_plugin.EventListener):
     def on_post_save(self, view):
-        if format_on_save:
+        if Globals.format_on_save and not Globals.save_no_format:
             Format(sublime.active_window().active_view(), True).run()
+        Globals.save_no_format = False
+
+
+class format_code_save_no_format(sublime_plugin.WindowCommand):
+    def run(self):
+        Globals.save_no_format = True
+        sublime.active_window().run_command("save")
 
 
 class Format(threading.Thread):
@@ -62,8 +74,7 @@ class Format(threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
-        global already_shown
-        if not self.extension or self.extension not in Formatters:
+        if not self.extension or self.extension not in Globals.Formatters:
             if self.extension:
                 msg = [
                     self.view.file_name(),
@@ -71,11 +82,11 @@ class Format(threading.Thread):
                 ]
                 key = ",".join(msg)
 
-                if key not in already_shown:
-                    already_shown[key] = True
+                if key not in Globals.already_shown:
+                    Globals.already_shown[key] = True
                     self.print(msg)
             return
-        if "command" not in Formatters[self.extension]:
+        if "command" not in Globals.Formatters[self.extension]:
             msg = [
                 self.view.file_name(),
                 "Command to run for the extension '"
@@ -84,8 +95,8 @@ class Format(threading.Thread):
             ]
             key = ",".join(msg)
 
-            if key not in already_shown:
-                already_shown[key] = True
+            if key not in Globals.already_shown:
+                Globals.already_shown[key] = True
                 self.print(msg)
             return
 
@@ -96,11 +107,11 @@ class Format(threading.Thread):
         if self.from_save or (
             sel_is_empty and self.view.file_name() and not self.view.is_dirty()
         ):
-            for item in binary_file_patterns:
+            for item in Globals.binary_file_patterns:
                 if item in self.view.file_name():
                     return
             if self.view.change_count() == self.change_count:
-                self.command = Formatters[self.extension]["command"] + [
+                self.command = Globals.Formatters[self.extension]["command"] + [
                     "--",
                     self.view.file_name(),
                 ]
@@ -110,8 +121,9 @@ class Format(threading.Thread):
                 if p["returncode"] != 0:
                     if (
                         self.file_extension != self.extension
-                        and "on unrecognised" in Formatters[self.extension]
-                        and Formatters[self.extension]["on unrecognised"] in p["stderr"]
+                        and "on unrecognised" in Globals.Formatters[self.extension]
+                        and Globals.Formatters[self.extension]["on unrecognised"]
+                        in p["stderr"]
                     ):
                         temporal = (
                             self.view.file_name()
@@ -124,7 +136,7 @@ class Format(threading.Thread):
                                 r.close()
                                 f.close()
                                 p = self.cli(
-                                    Formatters[self.extension]["command"]
+                                    Globals.Formatters[self.extension]["command"]
                                     + ["--", temporal]
                                 )
                                 if p["returncode"] != 0:
@@ -153,17 +165,15 @@ class Format(threading.Thread):
                 self.format_region(region)
 
     def format_region(self, region):
-        global counter
-
         text = self.view.substr(region)
 
-        counter += 1
+        Globals.counter += 1
 
         if self.view.file_name():
             temporal = (
                 os.path.dirname(self.view.file_name())
                 + "/sublime-format-temporal-"
-                + str(counter)
+                + str(Globals.counter)
                 + "."
                 + self.extension
             )
@@ -175,7 +185,10 @@ class Format(threading.Thread):
         with open(temporal, "wb") as f:
             f.write(bytes(text, "UTF-8"))
             f.close()
-            self.command = Formatters[self.extension]["command"] + ["--", temporal]
+            self.command = Globals.Formatters[self.extension]["command"] + [
+                "--",
+                temporal,
+            ]
             for k, v in enumerate(self.command):
                 self.command[k] = self.expand(self.command[k])
             p = self.cli(self.command)
@@ -209,24 +222,24 @@ class Format(threading.Thread):
             try:
                 extension = self.view.file_name().split(".").pop()
                 self.file_extension = extension
-                if extension in Formatters:
-                    if not "command" in Formatters[extension]:
+                if extension in Globals.Formatters:
+                    if not "command" in Globals.Formatters[extension]:
                         pass
                     else:
                         return extension
             except:
                 pass
         syntax = self.view.settings().get("syntax", "").lower()
-        for item in Formatters.keys():
+        for item in Globals.Formatters.keys():
             if (
-                "syntax contains" in Formatters[item]
-                and Formatters[item]["syntax contains"] in syntax
+                "syntax contains" in Globals.Formatters[item]
+                and Globals.Formatters[item]["syntax contains"] in syntax
             ):
                 if (
-                    "pretend to be" in Formatters[item]
-                    and Formatters[item]["pretend to be"]
+                    "pretend to be" in Globals.Formatters[item]
+                    and Globals.Formatters[item]["pretend to be"]
                 ):
-                    extension = Formatters[item]["pretend to be"]
+                    extension = Globals.Formatters[item]["pretend to be"]
                 else:
                     extension = item
                 break
@@ -264,8 +277,8 @@ class Format(threading.Thread):
             "command: " + str(self.command),
             "on unrecognised: "
             + str(
-                Formatters[self.extension]["on unrecognised"]
-                if "on unrecognised" in Formatters[self.extension]
+                Globals.Formatters[self.extension]["on unrecognised"]
+                if "on unrecognised" in Globals.Formatters[self.extension]
                 else ""
             ),
             "stdout: " + p["stdout"],
