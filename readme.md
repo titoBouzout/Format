@@ -30,6 +30,10 @@ npm install -g js-beautify
 
 pip install black
 
+#### xml
+
+npm install -g pretty-xml
+
 #### Adding/modify Support For Languages
 
 You install the command line tool you want to use and be sure is on path
@@ -55,8 +59,23 @@ The configuration is very straightforward, an example:
 		  "extension": "jsx",
 
 		  // the command line tool to which we can append a file path to format it
-		  "command": ["prettier", "--write"]
+		  "command": ["prettier", "--write", "--"]
 		},
+	]
+}
+```
+
+To use stdout:
+
+```
+{
+	"formatters": [
+		{
+		  "syntax contains": "xml",
+		  "extension": "xml",
+		  "command": ["pretty-xml", "<"],
+		  "use stdout": true
+		}
 	]
 }
 ```

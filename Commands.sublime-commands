@@ -3,7 +3,6 @@
     "caption": "Format Code",
     "command": "format_code"
   },
-
   {
     "caption": "Format Code: Toggle Format On Save",
     "command": "format_code_toggle"

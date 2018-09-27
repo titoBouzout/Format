@@ -10,60 +10,66 @@
       "extension": "jsx",
 
       // the command line tool to which we can append a file path to format it
-      "command": ["prettier", "--write"]
+      "command": ["prettier", "--write", "--"]
     },
     {
       "syntax contains": "javascript",
       "extension": "js",
-      "command": ["prettier", "--write"]
+      "command": ["prettier", "--write", "--"]
     },
     {
       "syntax contains": "json",
       "extension": "json",
-      "command": ["prettier", "--write"]
+      "command": ["prettier", "--write", "--"]
     },
     {
       "syntax contains": "json",
       "extension": "sublime-settings",
-      "command": ["prettier", "--write"]
+      "command": ["prettier", "--write", "--"]
     },
     {
       "syntax contains": "json",
       "extension": "sublime-menu",
-      "command": ["prettier", "--write"]
+      "command": ["prettier", "--write", "--"]
     },
     {
       "syntax contains": "json",
       "extension": "sublime-commands",
-      "command": ["prettier", "--write"]
+      "command": ["prettier", "--write", "--"]
     },
 
     {
       "syntax contains": "css",
       "extension": "css",
-      "command": ["prettier", "--write"]
+      "command": ["prettier", "--write", "--"]
     },
     {
       "syntax contains": "php",
       "extension": "php",
-      "command": ["prettier", "--write"]
+      "command": ["prettier", "--write", "--"]
     },
     {
       "syntax contains": "python",
       "extension": "py",
-      "command": ["black"]
+      "command": ["black", "--"]
     },
 
     {
       "syntax contains": "html",
       "extension": "html",
-      "command": ["js-beautify", "-r"]
+      "command": ["js-beautify", "-r", "--"]
     },
-
     {
       "syntax contains": "xml",
       "extension": "xml",
-      "command": ["js-beautify", "-r"]
+      "command": ["pretty-xml", "<"],
+      "use stdout": true
+    },
+    {
+      "syntax contains": "xml",
+      "extension": "hidden-tmLanguage",
+      "command": ["pretty-xml", "<"],
+      "use stdout": true
     }
   ]
 }

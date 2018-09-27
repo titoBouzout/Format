@@ -87,7 +87,7 @@ class Format(threading.Thread):
             if (
                 "syntax contains" in item
                 and "extension" in item
-                and self.file_extension == item["extension"]
+                and str(self.file_extension).lower() == str(item["extension"]).lower()
                 and item["syntax contains"] in self.syntax
             ):
                 self.formatter = item
@@ -138,13 +138,15 @@ class Format(threading.Thread):
         sel.reverse()
         sel_is_empty = all([False for _sel in sel if _sel and not _sel.empty()])
 
-        if self.file_extension == self.formatter["extension"] and (
+        if str(self.file_extension).lower() == str(
+            self.formatter["extension"]
+        ).lower() and (
             self.from_save
             or (sel_is_empty and self.file_name and not self.view.is_dirty())
         ):
             if self.view.change_count() == self.change_count:
 
-                self.command = self.formatter["command"] + ["--", self.file_name]
+                self.command = self.formatter["command"] + [self.file_name]
                 for k, v in enumerate(self.command):
                     self.command[k] = self.expand(self.command[k])
 
@@ -152,12 +154,34 @@ class Format(threading.Thread):
                 if p["returncode"] != 0:
                     self.print_error(p)
                 else:
-                    self.print_success(p)
+                    if "use stdout" in self.formatter and self.formatter["use stdout"]:
+                        new_text = p["stdout"].decode("utf8")
+                        if new_text != self.view.substr(
+                            sublime.Region(0, self.view.size())
+                        ):
+                            if self.view.change_count() == self.change_count:
+                                self.change_count += 1
+                                with Edit(self.view) as edit:
+                                    edit.replace(
+                                        sublime.Region(0, self.view.size()), new_text
+                                    )
+                                if self.from_save and self.view.is_dirty():
+                                    self.view.run_command("save")
+                                self.print_success(p)
+                            else:
+                                # self.print("Code changed since the time we started formatting")
+                                pass
+                        else:
+                            # self.print("Code didn't change, skipping")
+                            # self.print_success(p)
+                            pass
+                    else:
+                        self.print_success(p)
 
         elif sel_is_empty or self.from_save:
             self.format_region(sublime.Region(0, self.view.size()))
             if self.from_save and self.view.is_dirty():
-                sublime.active_window().active_view().run_command("save")
+                self.view.run_command("save")
         else:
             for region in sel:
                 if region.empty():
@@ -186,7 +210,7 @@ class Format(threading.Thread):
             f.write(bytes(text, "UTF-8"))
             f.close()
 
-            self.command = self.formatter["command"] + ["--", temporal]
+            self.command = self.formatter["command"] + [temporal]
             for k, v in enumerate(self.command):
                 self.command[k] = self.expand(self.command[k])
 
@@ -195,7 +219,10 @@ class Format(threading.Thread):
                 self.print_error(p)
             else:
                 with open(temporal, "rb") as r:
-                    new_text = r.read().decode("utf8")
+                    if "use stdout" in self.formatter and self.formatter["use stdout"]:
+                        new_text = p["stdout"].decode("utf8")
+                    else:
+                        new_text = r.read().decode("utf8")
                     if new_text != text:
                         if self.view.change_count() == self.change_count:
                             self.change_count += 1
@@ -206,9 +233,9 @@ class Format(threading.Thread):
                             # self.print("Code changed since the time we started formatting")
                             pass
                     else:
-                        pass
                         # self.print("Code didn't change, skipping")
                         # self.print_success(p)
+                        pass
             try:
                 os.unlink(temporal)
             except:
@@ -232,26 +259,33 @@ class Format(threading.Thread):
         except:
             pass
 
-        p = {"stderr": str(stderr), "stdout": str(stdout), "returncode": p.returncode}
+        p = {"stderr": stderr, "stdout": stdout, "returncode": p.returncode}
         return p
 
     def message(self, msg):
         sublime.set_timeout(lambda: sublime.active_window().status_message(msg), 0)
 
     def print_error(self, p):
-        self.print(
+        msg = [
             "file path: " + self.file_name,
             "return code: " + str(p["returncode"]),
             "command: " + str(self.command),
-            "stdout: " + p["stdout"],
-            "stderr: " + p["stderr"],
-        )
+        ]
+        if p["stdout"]:
+            msg.append(p["stdout"])
+
+        if p["stderr"]:
+            msg.append(p["stderr"])
+        self.print(msg)
         self.message("Format Error")
 
     def print_success(self, p):
-        self.print(
-            str(self.command) + (" : " + p["stdout"] if p["stdout"] != str(b"") else "")
-        )
+        msg = [str(self.command)]
+        if "use stdout" in self.formatter and self.formatter["use stdout"]:
+            msg.append("[..code..]")
+        elif p["stdout"]:
+            msg.append(str(p["stdout"]))
+        self.print(" : ".join(msg))
         self.message("Formatted")
 
     def print(self, *args):
