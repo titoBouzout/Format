@@ -3,7 +3,7 @@ import subprocess, os, sys
 import platform
 import tempfile
 import threading
-from .edit.Edit import Edit as Edit
+from .edit.Edit import Edit
 
 
 class Globals:
@@ -11,24 +11,23 @@ class Globals:
 
 
 Globals = Globals()
-Globals.Formatters = {}
+Globals.Formatters = []
 Globals.format_on_save = True
 Globals.save_no_format = False
 Globals.counter = 0
-Globals.already_shown = {}
 Globals.binary_file_patterns = []
 
 
 def plugin_loaded():
     s = sublime.load_settings("Format.sublime-settings")
-    s.clear_on_change("reload")
-    s.add_on_change("reload", lambda: plugin_loaded())
-    Globals.Formatters = s.get("format", {})
+    s.clear_on_change("reload_format")
+    s.add_on_change("reload_format", lambda: plugin_loaded())
+    Globals.Formatters = s.get("formatters", [])
     Globals.format_on_save = s.get("format_on_save", True)
 
     s = sublime.load_settings("Preferences.sublime-settings")
-    s.clear_on_change("reload")
-    s.add_on_change("reload", lambda: plugin_loaded())
+    s.clear_on_change("reload_format_sublime")
+    s.add_on_change("reload_format_sublime", lambda: plugin_loaded())
     Globals.binary_file_patterns = s.get("binary_file_patterns", [])
 
 
@@ -51,113 +50,114 @@ class format_code_toggle(sublime_plugin.WindowCommand):
 
 
 class format_code_on_save(sublime_plugin.EventListener):
-    def on_post_save(self, view):
+    def on_post_save_async(self, view):
         if Globals.format_on_save and not Globals.save_no_format:
-            Format(sublime.active_window().active_view(), True).run()
+            Format(sublime.active_window().active_view(), True).start()
         Globals.save_no_format = False
 
 
 class format_code_save_no_format(sublime_plugin.WindowCommand):
     def run(self):
         Globals.save_no_format = True
-        sublime.active_window().run_command("save")
+        sublime.active_window().active_view().run_command("save")
 
 
 class Format(threading.Thread):
     def __init__(self, view, from_save=False):
         self.view = view
-        self.file_extension = None
-        self.command = None
-        self.extension = self.guess_formatter()
+        self.file_name = view.file_name()
         self.change_count = view.change_count()
         self.from_save = from_save
+
+        self.command = None
+        self.formatter = None
+        self.binary = None
+
+        if self.file_name:
+            try:
+                self.file_extension = self.file_name.split(".").pop()
+            except:
+                self.file_extension = None
+
+        self.syntax = view.settings().get("syntax", "").lower()
+        if not self.syntax:
+            self.syntax = None
+
+        for item in Globals.Formatters:
+            if (
+                "syntax contains" in item
+                and "extension" in item
+                and self.file_extension == item["extension"]
+                and item["syntax contains"] in self.syntax
+            ):
+                self.formatter = item
+                break
+
+        if not self.formatter:
+            for item in Globals.Formatters:
+                if "syntax contains" in item and item["syntax contains"] in self.syntax:
+                    self.formatter = item
+                    break
+
+        for item in Globals.binary_file_patterns:
+            if item in self.file_name:
+                self.binary = True
+
         threading.Thread.__init__(self)
 
     def run(self):
-        if not self.extension or self.extension not in Globals.Formatters:
-            if self.extension:
-                msg = [
-                    self.view.file_name(),
-                    "No formatter declared for file extension: " + str(self.extension),
-                ]
-                key = ",".join(msg)
 
-                if key not in Globals.already_shown:
-                    Globals.already_shown[key] = True
-                    self.print(msg)
+        if self.binary:
             return
-        if "command" not in Globals.Formatters[self.extension]:
+
+        if not self.formatter:
             msg = [
-                self.view.file_name(),
-                "Command to run for the extension '"
-                + (self.extension)
-                + "' is empty on package settings",
+                self.file_name,
+                "No formatter declared for file. Extension: '"
+                + str(self.file_extension)
+                + "' Syntax: '"
+                + str(self.syntax)
+                + "'",
             ]
-            key = ",".join(msg)
-
-            if key not in Globals.already_shown:
-                Globals.already_shown[key] = True
-                self.print(msg)
+            self.print(msg)
             return
 
-        sel = self.view.sel() or []
-        sel = list(sel)
+        if "command" not in self.formatter or "extension" not in self.formatter:
+            msg = [
+                self.file_name,
+                "Command or Extension not declared in package settings. Extension '"
+                + str(self.file_extension)
+                + "' Syntax: '"
+                + str(self.syntax)
+                + "' ",
+            ]
+            self.print(msg)
+            return
+
+        sel = list(self.view.sel() or [])
         sel.reverse()
-        sel_is_empty = len(sel) == 1 and sel[0].empty()
-        if self.from_save or (
-            sel_is_empty and self.view.file_name() and not self.view.is_dirty()
+        sel_is_empty = all([False for _sel in sel if _sel and not _sel.empty()])
+
+        if self.file_extension == self.formatter["extension"] and (
+            self.from_save
+            or (sel_is_empty and self.file_name and not self.view.is_dirty())
         ):
-            for item in Globals.binary_file_patterns:
-                if item in self.view.file_name():
-                    return
             if self.view.change_count() == self.change_count:
-                self.command = Globals.Formatters[self.extension]["command"] + [
-                    "--",
-                    self.view.file_name(),
-                ]
+
+                self.command = self.formatter["command"] + ["--", self.file_name]
                 for k, v in enumerate(self.command):
                     self.command[k] = self.expand(self.command[k])
+
                 p = self.cli(self.command)
                 if p["returncode"] != 0:
-                    if (
-                        self.file_extension != self.extension
-                        and "on unrecognised" in Globals.Formatters[self.extension]
-                        and Globals.Formatters[self.extension]["on unrecognised"]
-                        in p["stderr"]
-                    ):
-                        temporal = (
-                            self.view.file_name()
-                            + ".sublime-format-temporal."
-                            + self.extension
-                        )
-                        with open(temporal, "wb") as f:
-                            with open(self.view.file_name(), "rb") as r:
-                                f.write(r.read())
-                                r.close()
-                                f.close()
-                                p = self.cli(
-                                    Globals.Formatters[self.extension]["command"]
-                                    + ["--", temporal]
-                                )
-                                if p["returncode"] != 0:
-                                    self.print_error(p)
-                                else:
-                                    if self.view.change_count() == self.change_count:
-                                        open(self.view.file_name(), "wb").write(
-                                            open(temporal, "rb").read()
-                                        )
-                                        self.message("Formatted")
-                                try:
-                                    os.unlink(temporal)
-                                except:
-                                    pass
-                    else:
-                        self.print_error(p)
-
+                    self.print_error(p)
                 else:
-                    self.message("Formatted")
-        elif sel_is_empty and not self.view.file_name():
+                    self.print_success(p)
+
+        elif sel_is_empty or self.from_save:
             self.format_region(sublime.Region(0, self.view.size()))
+            if self.from_save and self.view.is_dirty():
+                sublime.active_window().active_view().run_command("save")
         else:
             for region in sel:
                 if region.empty():
@@ -169,30 +169,28 @@ class Format(threading.Thread):
 
         Globals.counter += 1
 
-        if self.view.file_name():
+        if self.file_name:
             temporal = (
-                os.path.dirname(self.view.file_name())
-                + "/sublime-format-temporal-"
+                os.path.dirname(self.file_name)
+                + "/sublime-package-format-temporal-"
                 + str(Globals.counter)
                 + "."
-                + self.extension
+                + self.formatter["extension"]
             )
         else:
             temporal = tempfile.NamedTemporaryFile(
-                delete=False, suffix="." + self.extension
+                delete=False, suffix="." + self.formatter["extension"]
             ).name
 
         with open(temporal, "wb") as f:
             f.write(bytes(text, "UTF-8"))
             f.close()
-            self.command = Globals.Formatters[self.extension]["command"] + [
-                "--",
-                temporal,
-            ]
+
+            self.command = self.formatter["command"] + ["--", temporal]
             for k, v in enumerate(self.command):
                 self.command[k] = self.expand(self.command[k])
-            p = self.cli(self.command)
 
+            p = self.cli(self.command)
             if p["returncode"] != 0:
                 self.print_error(p)
             else:
@@ -203,48 +201,18 @@ class Format(threading.Thread):
                             self.change_count += 1
                             with Edit(self.view) as edit:
                                 edit.replace(region, new_text)
-                                self.message("Formatted")
+                                self.print_success(p)
                         else:
                             # self.print("Code changed since the time we started formatting")
                             pass
                     else:
-                        # self.print("Code didnt change, skipping")
                         pass
+                        # self.print("Code didn't change, skipping")
+                        # self.print_success(p)
             try:
                 os.unlink(temporal)
             except:
                 pass
-
-    def guess_formatter(self):
-        extension = None
-        self.file_extension = None
-        if self.view.file_name():
-            try:
-                extension = self.view.file_name().split(".").pop()
-                self.file_extension = extension
-                if extension in Globals.Formatters:
-                    if not "command" in Globals.Formatters[extension]:
-                        pass
-                    else:
-                        return extension
-            except:
-                pass
-        syntax = self.view.settings().get("syntax", "").lower()
-        for item in Globals.Formatters.keys():
-            if (
-                "syntax contains" in Globals.Formatters[item]
-                and Globals.Formatters[item]["syntax contains"] in syntax
-            ):
-                if (
-                    "pretend to be" in Globals.Formatters[item]
-                    and Globals.Formatters[item]["pretend to be"]
-                ):
-                    extension = Globals.Formatters[item]["pretend to be"]
-                else:
-                    extension = item
-                break
-
-        return extension
 
     def cli(self, command):
         info = subprocess.STARTUPINFO()
@@ -272,19 +240,19 @@ class Format(threading.Thread):
 
     def print_error(self, p):
         self.print(
-            "file path: " + self.view.file_name(),
+            "file path: " + self.file_name,
             "return code: " + str(p["returncode"]),
             "command: " + str(self.command),
-            "on unrecognised: "
-            + str(
-                Globals.Formatters[self.extension]["on unrecognised"]
-                if "on unrecognised" in Globals.Formatters[self.extension]
-                else ""
-            ),
             "stdout: " + p["stdout"],
             "stderr: " + p["stderr"],
         )
         self.message("Format Error")
+
+    def print_success(self, p):
+        self.print(
+            str(self.command) + (" : " + p["stdout"] if p["stdout"] != str(b"") else "")
+        )
+        self.message("Formatted")
 
     def print(self, *args):
         for item in args:
