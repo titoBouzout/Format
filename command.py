@@ -194,12 +194,12 @@ class Format(threading.Thread):
         Globals.counter += 1
 
         if self.file_name:
-            temporal = (
-                os.path.dirname(self.file_name)
-                + "/sublime-package-format-temporal-"
+            temporal = os.path.join(
+                os.path.dirname(self.file_name),
+                "sublime-package-format-temporal-"
                 + str(Globals.counter)
                 + "."
-                + self.formatter["extension"]
+                + self.formatter["extension"],
             )
         else:
             temporal = tempfile.NamedTemporaryFile(
