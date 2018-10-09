@@ -52,7 +52,7 @@ class format_code_toggle(sublime_plugin.WindowCommand):
 class format_code_on_save(sublime_plugin.EventListener):
     def on_post_save_async(self, view):
         if Globals.format_on_save and not Globals.save_no_format:
-            Format(sublime.active_window().active_view(), True).start()
+            Format(view, True).start()
         Globals.save_no_format = False
 
 
@@ -65,7 +65,7 @@ class format_code_save_no_format(sublime_plugin.WindowCommand):
 class Format(threading.Thread):
     def __init__(self, view, from_save=False):
         self.view = view
-        self.file_name = view.file_name()
+        self.file_name = view.file_name() or ""
         self.change_count = view.change_count()
         self.from_save = from_save
 
@@ -77,19 +77,18 @@ class Format(threading.Thread):
             try:
                 self.file_extension = self.file_name.split(".").pop()
             except:
-                self.file_extension = None
+                self.file_extension = ""
+        else:
+            self.file_extension = ""
 
         self.syntax = view.settings().get("syntax", "").lower()
         if not self.syntax:
-            self.syntax = None
+            self.syntax = ""
 
         for item in Globals.Formatters:
-            if (
-                "syntax contains" in item
-                and "extension" in item
-                and str(self.file_extension).lower() == str(item["extension"]).lower()
-                and item["syntax contains"] in self.syntax
-            ):
+            if "extensions" in item and str(self.file_extension).lower() in [
+                ext.lower() for ext in item["extensions"]
+            ]:
                 self.formatter = item
                 break
 
@@ -122,7 +121,7 @@ class Format(threading.Thread):
             self.print(msg)
             return
 
-        if "command" not in self.formatter or "extension" not in self.formatter:
+        if "command" not in self.formatter or "extensions" not in self.formatter:
             msg = [
                 self.file_name,
                 "Command or Extension not declared in package settings. Extension '"
@@ -138,9 +137,9 @@ class Format(threading.Thread):
         sel.reverse()
         sel_is_empty = all([False for _sel in sel if _sel and not _sel.empty()])
 
-        if str(self.file_extension).lower() == str(
-            self.formatter["extension"]
-        ).lower() and (
+        if str(self.file_extension).lower() in [
+            ext.lower() for ext in self.formatter["extensions"]
+        ] and (
             self.from_save
             or (sel_is_empty and self.file_name and not self.view.is_dirty())
         ):
@@ -199,11 +198,11 @@ class Format(threading.Thread):
                 "sublime-package-format-temporal-"
                 + str(Globals.counter)
                 + "."
-                + self.formatter["extension"],
+                + self.formatter["extensions"][0],
             )
         else:
             temporal = tempfile.NamedTemporaryFile(
-                delete=False, suffix="." + self.formatter["extension"]
+                delete=False, suffix="." + self.formatter["extensions"][0]
             ).name
 
         with open(temporal, "wb") as f:

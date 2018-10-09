@@ -3,48 +3,43 @@
 
 	"formatters": [
 		{
-			// if this matches the command will run
-			"syntax contains": "javascript",
-
-			// used when the file is not saved or when the extension mismatches
-			"extension": "jsx",
-
-			// the command line tool to which we can append a file path to format it
-			"command": ["prettier", "--write"]
+			"syntax contains": "javascript", // if this matches the command will run
+			"extensions": ["jsx"], // used when the file is not saved or when the extensions mismatches
+			"command": ["prettier", "--write"] // the command line tool to which we can append a file path to format it
 		},
 		{
 			"syntax contains": "javascript",
-			"extension": "js",
+			"extensions": ["js"],
 			"command": ["prettier", "--write"]
 		},
 		{
 			"syntax contains": "json",
-			"extension": "json",
+			"extensions": ["json", "sublime-menu", "sublime-settings", "sublime-commands"],
 			"command": ["prettier", "--write"]
 		},
 		{
 			"syntax contains": "css",
-			"extension": "css",
+			"extensions": ["css"],
 			"command": ["prettier", "--write"]
 		},
 		{
 			"syntax contains": "php",
-			"extension": "php",
+			"extensions": ["php"],
 			"command": ["prettier", "--write"]
 		},
 		{
 			"syntax contains": "python",
-			"extension": "py",
+			"extensions": ["py"],
 			"command": ["black", "--"]
 		},
 		{
 			"syntax contains": "html",
-			"extension": "html",
+			"extensions": ["html"],
 			"command": ["js-beautify", "-r", "--"]
 		},
 		{
 			"syntax contains": "xml",
-			"extension": "xml",
+			"extensions": ["xml", "hidden-tmLanguage"],
 			"command": ["pretty-xml", "<"],
 			"use stdout": true
 		}
