@@ -17,7 +17,7 @@ Globals.save_no_format = False
 Globals.counter = 0
 Globals.binary_file_patterns = []
 
-Globals.debug = True
+Globals.debug = False
 
 
 def plugin_loaded():
