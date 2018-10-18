@@ -17,6 +17,8 @@ Globals.save_no_format = False
 Globals.counter = 0
 Globals.binary_file_patterns = []
 
+Globals.debug = True
+
 
 def plugin_loaded():
     s = sublime.load_settings("Format.sublime-settings")
@@ -100,13 +102,15 @@ class Format(threading.Thread):
 
         for item in Globals.binary_file_patterns:
             if item in self.file_name:
+                if Globals.debug:
+                    self.print("Matched binary", item, "in", self.file_name)
                 self.binary = True
 
         threading.Thread.__init__(self)
 
     def run(self):
 
-        if self.binary:
+        if self.binary and self.from_save:
             return
 
         if not self.formatter:
@@ -168,11 +172,15 @@ class Format(threading.Thread):
                                     self.view.run_command("save")
                                 self.print_success(p)
                             else:
-                                # self.print("Code changed since the time we started formatting")
+                                if Globals.debug:
+                                    self.print(
+                                        "Code changed since the time we started formatting"
+                                    )
                                 pass
                         else:
-                            # self.print("Code didn't change, skipping")
-                            # self.print_success(p)
+                            if Globals.debug:
+                                self.print("Code didn't change, skipping")
+                                self.print_success(p)
                             pass
                     else:
                         self.print_success(p)
@@ -229,11 +237,15 @@ class Format(threading.Thread):
                                 edit.replace(region, new_text)
                                 self.print_success(p)
                         else:
-                            # self.print("Code changed since the time we started formatting")
+                            if Globals.debug:
+                                self.print(
+                                    "Code changed since the time we started formatting"
+                                )
                             pass
                     else:
-                        # self.print("Code didn't change, skipping")
-                        # self.print_success(p)
+                        if Globals.debug:
+                            self.print("Code didn't change, skipping")
+                            self.print_success(p)
                         pass
             try:
                 os.unlink(temporal)
