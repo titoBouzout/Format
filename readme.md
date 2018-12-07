@@ -1,18 +1,18 @@
 ## Format Code for Sublime Text
 
-Format or prettify code and text in selections or files with any command line tool.
+Format or prettify code and text in selections or files(saved or not) with any command line tool you wish.
 
 ### Features
 
-- you can use any formatter you like if they provide a command line tool :)
 - format on save (can be toggled)
-- format selections by creating a temporal file (on the same folder as the file being formatted)
+- file save without formatting
+- format selections by creating a temporal file (on the same folder as the file being formatted so formatting options in config files are respected)
 - format unsaved files by creating a temporal file (on your os temp folder)
 - could guess the file type by syntax in case the extension isn't obvious (ex .prettierrc == json)
-- does not modify code if changed since the time we started formatting (no race condition)
-- does not modify code if the result is the same (no undo trashing)
-- keeps yours selections (when not applied on save xD because well ST reasons)
+- it does not modify code if changed since the time we started formatting
+- it does not modify code if the result is the same (no undo trashing)
 - ignore files via binary_file_patterns (it does not check for pattern only for substring)
+- experimental live formatting after some seconds passed
 
 ### Languages
 
@@ -46,39 +46,7 @@ and paste modified/added formatters in
 
 Preferences > Package Settings > Format > Settings - User
 
-The configuration is very straightforward, an example:
-
-```
-{
-	"formatters": [
-		{
-		  // if this matches the command will run
-		  "syntax contains": "javascript",
-
-		  // used when the file is not saved(Extension unknown or when the extension mismatches (ex .prettierrc == json))
-		  "extension": "jsx",
-
-		  // the command line tool to which we can append a file path to format it
-		  "command": ["prettier", "--write", "--"]
-		},
-	]
-}
-```
-
-To use stdout:
-
-```
-{
-	"formatters": [
-		{
-		  "syntax contains": "xml",
-		  "extension": "xml",
-		  "command": ["pretty-xml", "<"],
-		  "use stdout": true
-		}
-	]
-}
-```
+The configuration is very straightforward, "write" option is about giving a filename and the formatter does the job. Stdout option is about giving the formatter stdin and taking stdout.
 
 #### Usage
 

@@ -3,7 +3,17 @@ import subprocess, os, sys
 import platform
 import tempfile
 import threading
+import time
 from .edit.Edit import Edit
+
+try:
+    import thread
+except:
+    import _thread as thread
+
+for path in os.environ["PATH"].split(";"):
+    sys.path.append(path)
+sys.path = list(set(list(sys.path)))
 
 
 class Globals:
@@ -11,65 +21,121 @@ class Globals:
 
 
 Globals = Globals()
-Globals.Formatters = []
-Globals.format_on_save = True
-Globals.save_no_format = False
-Globals.counter = 0
+
+Globals.formatters = []
+
+Globals.on_save = False
+Globals.on_save_no_format = False
+Globals.live = False
+Globals.delay = 3
+
 Globals.binary_file_patterns = []
+
+Globals.temp = 0
 
 Globals.debug = False
 
 
 def plugin_loaded():
     s = sublime.load_settings("Format.sublime-settings")
-    s.clear_on_change("reload_format")
-    s.add_on_change("reload_format", lambda: plugin_loaded())
-    Globals.Formatters = s.get("formatters", [])
-    Globals.format_on_save = s.get("format_on_save", True)
+    s.clear_on_change("format_reload")
+    s.add_on_change("format_reload", lambda: plugin_loaded())
+    Globals.formatters = s.get("formatters", Globals.formatters)
+    Globals.on_save = s.get("on_save", Globals.on_save)
+    Globals.live = s.get("live", Globals.live)
+    Globals.delay = s.get("delay", Globals.delay)
 
     s = sublime.load_settings("Preferences.sublime-settings")
-    s.clear_on_change("reload_format_sublime")
-    s.add_on_change("reload_format_sublime", lambda: plugin_loaded())
-    Globals.binary_file_patterns = s.get("binary_file_patterns", [])
+    s.clear_on_change("format_reload_st")
+    s.add_on_change("format_reload_st", lambda: plugin_loaded())
+    Globals.binary_file_patterns = s.get(
+        "binary_file_patterns", Globals.binary_file_patterns
+    )
 
 
-for path in os.environ["PATH"].split(";"):
-    sys.path.append(path)
-sys.path = list(set(list(sys.path)))
+# from save
+class format_code_on_save(sublime_plugin.EventListener):
+    def on_post_save_async(self, view):
+        if Globals.on_save and not Globals.on_save_no_format:
+            Format(view, True).start()
+        Globals.on_save_no_format = False
 
 
+# from save without formatting
+class format_code_on_save_no_format(sublime_plugin.WindowCommand):
+    def run(self):
+        Globals.on_save_no_format = True
+        sublime.active_window().active_view().run_command("save")
+
+
+# from command palette (for selections or complete document)
 class format_code(sublime_plugin.TextCommand):
     def run(self, edit):
         Format(sublime.active_window().active_view()).start()
 
 
-class format_code_toggle(sublime_plugin.WindowCommand):
+# toggles
+
+
+class format_on_save_toggle(sublime_plugin.WindowCommand):
     def run(self):
-        Globals.format_on_save = not Globals.format_on_save
+        Globals.on_save = not Globals.on_save
         s = sublime.load_settings("Format.sublime-settings")
-        s.set("format_on_save", Globals.format_on_save)
+        s.set("on_save", Globals.on_save)
         sublime.save_settings("Format.sublime-settings")
 
 
-class format_code_on_save(sublime_plugin.EventListener):
-    def on_post_save_async(self, view):
-        if Globals.format_on_save and not Globals.save_no_format:
-            Format(view, True).start()
-        Globals.save_no_format = False
-
-
-class format_code_save_no_format(sublime_plugin.WindowCommand):
+class format_live_toggle(sublime_plugin.WindowCommand):
     def run(self):
-        Globals.save_no_format = True
-        sublime.active_window().active_view().run_command("save")
+        Globals.live = not Globals.live
+        s = sublime.load_settings("Format.sublime-settings")
+        s.set("live", Globals.live)
+        sublime.save_settings("Format.sublime-settings")
+
+
+# live formatting
+
+
+class modified(sublime_plugin.EventListener):
+    def on_selection_modified(self, view):
+        if view and Globals.live:
+            settings = view.settings()
+            if not settings.get("is_widget"):
+                settings.set("format_live_time", time.time())
+
+
+def format_code_live_loop():
+    while True:
+        if Globals.live:
+            view = sublime.active_window().active_view()
+            settings = view.settings()
+
+            if (
+                view
+                and settings.get("format_live_change_count", 0) != view.change_count()
+                and time.time() - settings.get("format_live_time", 0) > Globals.delay
+            ):
+                settings.set("format_live_change_count", view.change_count())
+                settings.set("format_live_time", time.time())
+
+                Format(view, False, True, False).run()
+        time.sleep(Globals.delay)
+
+
+if not "format_code_live_loop_running" in globals():
+    global format_code_live_loop_running
+    format_code_live_loop_running = True
+    thread.start_new_thread(format_code_live_loop, ())
 
 
 class Format(threading.Thread):
-    def __init__(self, view, from_save=False):
+    def __init__(self, view, from_save=False, from_live=False, threaded=True):
         self.view = view
         self.file_name = view.file_name() or ""
         self.change_count = view.change_count()
         self.from_save = from_save
+        self.from_live = from_live
+        self.syntax = ""
 
         self.command = None
         self.formatter = None
@@ -77,28 +143,30 @@ class Format(threading.Thread):
 
         if self.file_name:
             try:
-                self.file_extension = self.file_name.split(".").pop()
+                self.file_extension = (self.file_name.split(".").pop() or "").lower()
             except:
                 self.file_extension = ""
         else:
             self.file_extension = ""
 
-        self.syntax = view.settings().get("syntax", "").lower()
+        self.syntax = (view.settings().get("syntax", "") or "").lower()
         if not self.syntax:
             self.syntax = ""
 
-        for item in Globals.Formatters:
-            if "extensions" in item and str(self.file_extension).lower() in [
+        for item in Globals.formatters:
+            if "extensions" in item and self.file_extension in [
                 ext.lower() for ext in item["extensions"]
             ]:
                 self.formatter = item
                 break
 
         if not self.formatter:
-            for item in Globals.Formatters:
-                if "syntax contains" in item and item["syntax contains"] in self.syntax:
-                    self.formatter = item
-                    break
+            for item in Globals.formatters:
+                if not self.formatter and "syntax contains" in item:
+                    for s in item["syntax contains"]:
+                        if self.syntax in s:
+                            self.formatter = item
+                            break
 
         for item in Globals.binary_file_patterns:
             if item in self.file_name:
@@ -106,33 +174,21 @@ class Format(threading.Thread):
                     self.print("Matched binary", item, "in", self.file_name)
                 self.binary = True
 
-        threading.Thread.__init__(self)
+        if threaded:
+            threading.Thread.__init__(self)
 
     def run(self):
 
-        if self.binary and self.from_save:
+        if self.binary:
             return
 
         if not self.formatter:
             msg = [
-                self.file_name,
-                "No formatter declared for file. Extension: '"
-                + str(self.file_extension)
+                "No formatter. Extension: '"
+                + self.file_extension
                 + "' Syntax: '"
-                + str(self.syntax)
-                + "'",
-            ]
-            self.print(msg)
-            return
-
-        if "command" not in self.formatter or "extensions" not in self.formatter:
-            msg = [
-                self.file_name,
-                "Command or Extension not declared in package settings. Extension '"
-                + str(self.file_extension)
-                + "' Syntax: '"
-                + str(self.syntax)
-                + "' ",
+                + self.syntax
+                + "'"
             ]
             self.print(msg)
             return
@@ -141,72 +197,74 @@ class Format(threading.Thread):
         sel.reverse()
         sel_is_empty = all([False for _sel in sel if _sel and not _sel.empty()])
 
-        if str(self.file_extension).lower() in [
-            ext.lower() for ext in self.formatter["extensions"]
-        ] and (
-            self.from_save
-            or (sel_is_empty and self.file_name and not self.view.is_dirty())
-        ):
-            if self.view.change_count() == self.change_count:
+        if self.view.change_count() == self.change_count:
 
-                self.command = self.formatter["command"] + [self.file_name]
+            if (
+                "write" in self.formatter
+                and self.file_name
+                and self.file_extension
+                in [ext.lower() for ext in self.formatter["extensions"]]
+                and (
+                    self.from_save
+                    or (
+                        not self.from_live and sel_is_empty and not self.view.is_dirty()
+                    )
+                )
+            ):
+                if Globals.debug:
+                    self.print("Formatting from save")
+                self.command = self.formatter["write"]
                 for k, v in enumerate(self.command):
-                    self.command[k] = self.expand(self.command[k])
+                    if self.command[k] == "$FILE":
+                        self.command[k] = self.file_name
+                    else:
+                        self.command[k] = self.expand(self.command[k])
 
                 p = self.cli(self.command)
                 if p["returncode"] != 0:
-                    self.print_error(p)
+                    self.error(p)
                 else:
-                    if "use stdout" in self.formatter and self.formatter["use stdout"]:
-                        new_text = p["stdout"].decode("utf8")
-                        if new_text != self.view.substr(
-                            sublime.Region(0, self.view.size())
-                        ):
-                            if self.view.change_count() == self.change_count:
-                                self.change_count += 1
-                                with Edit(self.view) as edit:
-                                    edit.replace(
-                                        sublime.Region(0, self.view.size()), new_text
-                                    )
-                                if self.from_save and self.view.is_dirty():
-                                    self.view.run_command("save")
-                                self.print_success(p)
-                            else:
-                                if Globals.debug:
-                                    self.print(
-                                        "Code changed since the time we started formatting"
-                                    )
-                                pass
-                        else:
-                            if Globals.debug:
-                                self.print("Code didn't change, skipping")
-                                self.print_success(p)
-                            pass
-                    else:
-                        self.print_success(p)
+                    self.success(p)
 
-        elif sel_is_empty or self.from_save:
-            self.format_region(sublime.Region(0, self.view.size()))
-            if self.from_save and self.view.is_dirty():
-                self.view.run_command("save")
+            elif (
+                self.from_save
+                or (self.from_live and sel_is_empty)
+                or (not self.from_live and sel_is_empty)
+            ):
+                if Globals.debug:
+                    self.print("Formatting from complete document")
+                self.format_region(sublime.Region(0, self.view.size()))
+
+            elif not self.from_live:
+                if Globals.debug:
+                    self.print("Formatting selections")
+                for region in sel:
+                    if region.empty():
+                        continue
+                    self.format_region(region)
+
         else:
-            for region in sel:
-                if region.empty():
-                    continue
-                self.format_region(region)
+            if Globals.debug:
+                self.print("Code changed since the time we started formatting")
 
     def format_region(self, region):
-        text = self.view.substr(region)
 
-        Globals.counter += 1
+        if not "stdout" in self.formatter:
+            msg = [
+                "Cannot format region if no stdout command is provided. Extension: '"
+                + str(self.file_extension)
+                + "' Syntax: '"
+                + str(self.syntax)
+                + "'"
+            ]
+            self.print(msg)
+            return
+
+        text = self.view.substr(region)
 
         if self.file_name:
             temporal = os.path.join(
-                os.path.dirname(self.file_name),
-                "sublime-package-format-temporal-"
-                + str(Globals.counter)
-                + "."
-                + self.formatter["extensions"][0],
+                os.path.dirname(self.file_name), "st-format-tmp-" + str(Globals.temp)
             )
         else:
             temporal = tempfile.NamedTemporaryFile(
@@ -216,41 +274,50 @@ class Format(threading.Thread):
         with open(temporal, "wb") as f:
             f.write(bytes(text, "UTF-8"))
             f.close()
+        if platform.system() == "Windows" or os.name == "nt":
+            command = "type"
+        else:
+            command = "cat"
+        self.command = [command, temporal, "|"] + self.formatter["stdout"]
 
-            self.command = self.formatter["command"] + [temporal]
-            for k, v in enumerate(self.command):
+        for k, v in enumerate(self.command):
+            if self.command[k] == "$FILE":
+                self.command[k] = temporal
+            elif self.command[k] == "$DUMMY_FILE_NAME":
+                self.command[k] = "f." + self.formatter["extensions"][0]
+            else:
                 self.command[k] = self.expand(self.command[k])
 
-            p = self.cli(self.command)
-            if p["returncode"] != 0:
-                self.print_error(p)
+        p = self.cli(self.command)
+        if p["returncode"] != 0:
+            self.error(p)
+        else:
+            new_text = p["stdout"].decode("utf8")
+            if new_text != text:
+                if self.view.change_count() == self.change_count:
+                    self.change_count += 1
+                    self.view.settings().set(
+                        "format_live_change_count", self.change_count
+                    )
+                    selections = list(self.view.sel())
+                    with Edit(self.view) as edit:
+                        edit.replace(region, new_text)
+                        self.success(p)
+                    self.view.sel().clear()
+                    for sel in selections:
+                        self.view.sel().add(sel)
+                else:
+                    if Globals.debug:
+                        self.print("Code changed since the time we started formatting")
             else:
-                with open(temporal, "rb") as r:
-                    if "use stdout" in self.formatter and self.formatter["use stdout"]:
-                        new_text = p["stdout"].decode("utf8")
-                    else:
-                        new_text = r.read().decode("utf8")
-                    if new_text != text:
-                        if self.view.change_count() == self.change_count:
-                            self.change_count += 1
-                            with Edit(self.view) as edit:
-                                edit.replace(region, new_text)
-                                self.print_success(p)
-                        else:
-                            if Globals.debug:
-                                self.print(
-                                    "Code changed since the time we started formatting"
-                                )
-                            pass
-                    else:
-                        if Globals.debug:
-                            self.print("Code didn't change, skipping")
-                            self.print_success(p)
-                        pass
-            try:
+                if Globals.debug:
+                    self.print("Code didn't change, skipping")
+                    self.success(p)
+        try:
+            if temporal:
                 os.unlink(temporal)
-            except:
-                pass
+        except:
+            pass
 
     def cli(self, command):
         info = subprocess.STARTUPINFO()
@@ -270,32 +337,24 @@ class Format(threading.Thread):
         except:
             pass
 
-        p = {"stderr": stderr, "stdout": stdout, "returncode": p.returncode}
-        return p
+        return {"stderr": stderr, "stdout": stdout, "returncode": p.returncode}
 
     def message(self, msg):
         sublime.set_timeout(lambda: sublime.active_window().status_message(msg), 0)
 
-    def print_error(self, p):
+    def error(self, p):
         msg = [
             "file path: " + self.file_name,
             "return code: " + str(p["returncode"]),
             "command: " + str(self.command),
         ]
-        if p["stdout"]:
-            msg.append(p["stdout"])
-
         if p["stderr"]:
             msg.append(p["stderr"])
         self.print(msg)
         self.message("Format Error")
 
-    def print_success(self, p):
+    def success(self, p):
         msg = [str(self.command)]
-        if "use stdout" in self.formatter and self.formatter["use stdout"]:
-            msg.append("[..code..]")
-        elif p["stdout"]:
-            msg.append(str(p["stdout"]))
         self.print(" : ".join(msg))
         self.message("Formatted")
 

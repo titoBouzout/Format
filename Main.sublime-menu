@@ -5,7 +5,7 @@
 		"id": "file",
 		"children": [
 			{
-				"command": "format_code_save_no_format",
+				"command": "format_code_on_save_no_format",
 				"caption": "Save Without Formatting"
 			}
 		]

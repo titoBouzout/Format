@@ -1,47 +1,50 @@
 {
-	"format_on_save": true,
+	"live": false,
+	"on_save": true,
 
 	"formatters": [
+		// first will try to match a formater by extension and then if non found by syntax
 		{
-			"syntax contains": "javascript", // if this matches the command will run
-			"extensions": ["jsx"], // used when the file is not saved or when the extensions mismatches
-			"command": ["prettier", "--write"] // the command line tool to which we can append a file path to format it
+			"syntax contains": ["javascript"],
+			"extensions": ["jsx", "js"], // used when the file is not saved or when the extensions mismatches
+			"write": ["prettier", "--write", "--", "$FILE"],
+			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
 		},
 		{
-			"syntax contains": "javascript",
-			"extensions": ["js"],
-			"command": ["prettier", "--write"]
-		},
-		{
-			"syntax contains": "json",
+			"syntax contains": ["json"],
 			"extensions": ["json", "sublime-menu", "sublime-settings", "sublime-commands"],
-			"command": ["prettier", "--write"]
+			"write": ["prettier", "--write", "--", "$FILE"],
+			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
 		},
 		{
-			"syntax contains": "css",
+			"syntax contains": ["css"],
 			"extensions": ["css"],
-			"command": ["prettier", "--write"]
+			"write": ["prettier", "--write", "--", "$FILE"],
+			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
 		},
 		{
-			"syntax contains": "php",
+			"syntax contains": ["php"],
 			"extensions": ["php"],
-			"command": ["prettier", "--write"]
+			"write": ["prettier", "--write", "--", "$FILE"],
+			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
 		},
 		{
-			"syntax contains": "python",
+			"syntax contains": ["python"],
 			"extensions": ["py"],
-			"command": ["black", "--"]
+			"write": ["black", "--", "$FILE"],
+			"stdout": ["black", "-"]
 		},
+
 		{
-			"syntax contains": "html",
+			"syntax contains": ["html"],
 			"extensions": ["html"],
-			"command": ["js-beautify", "-r", "--"]
+			"write": ["js-beautify", "-r", "--", "$FILE"],
+			"stdout": ["js-beautify", "--type=html", "-"]
 		},
 		{
-			"syntax contains": "xml",
+			"syntax contains": ["xml"],
 			"extensions": ["xml", "hidden-tmLanguage"],
-			"command": ["pretty-xml", "<"],
-			"use stdout": true
+			"stdout": ["pretty-xml", "-"]
 		}
 	]
 }
