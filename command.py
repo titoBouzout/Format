@@ -164,7 +164,7 @@ class Format(threading.Thread):
             for item in Globals.formatters:
                 if not self.formatter and "syntax contains" in item:
                     for s in item["syntax contains"]:
-                        if self.syntax in s:
+                        if s in self.syntax:
                             self.formatter = item
                             break
 
