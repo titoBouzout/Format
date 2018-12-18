@@ -46,7 +46,7 @@ and paste modified/added formatters in
 
 Preferences > Package Settings > Format > Settings - User
 
-The configuration is very straightforward, "write" option is about giving a filename and the formatter does the job. Stdout option is about giving the formatter stdin and taking stdout.
+The configuration is very straightforward, Stdout option is about giving the formatter stdin and taking stdout.
 
 #### Usage
 

@@ -200,8 +200,7 @@ class Format(threading.Thread):
         if self.view.change_count() == self.change_count:
 
             if (
-                "write" in self.formatter
-                and self.file_name
+                self.file_name
                 and self.file_extension
                 in [ext.lower() for ext in self.formatter["extensions"]]
                 and (
@@ -212,20 +211,13 @@ class Format(threading.Thread):
                 )
             ):
                 if Globals.debug:
-                    self.print("Formatting from save")
-                self.command = self.formatter["write"]
-                for k, v in enumerate(self.command):
-                    if self.command[k] == "$FILE":
-                        self.command[k] = self.file_name
-                    else:
-                        self.command[k] = self.expand(self.command[k])
-
-                p = self.cli(self.command)
-                if p["returncode"] != 0:
-                    self.error(p)
-                else:
-                    self.success(p)
-
+                    self.print("Formatting from complete document")
+                self.format_region(sublime.Region(0, self.view.size()), True)
+                if (
+                    self.view.is_dirty()
+                    and self.view.change_count() == self.change_count
+                ):
+                    self.view.run_command("save")
             elif (
                 self.from_save
                 or (self.from_live and sel_is_empty)
@@ -233,7 +225,7 @@ class Format(threading.Thread):
             ):
                 if Globals.debug:
                     self.print("Formatting from complete document")
-                self.format_region(sublime.Region(0, self.view.size()))
+                self.format_region(sublime.Region(0, self.view.size()), True)
 
             elif not self.from_live:
                 if Globals.debug:
@@ -247,7 +239,7 @@ class Format(threading.Thread):
             if Globals.debug:
                 self.print("Code changed since the time we started formatting")
 
-    def format_region(self, region):
+    def format_region(self, region, complete=False):
 
         if not "stdout" in self.formatter:
             msg = [
@@ -262,7 +254,9 @@ class Format(threading.Thread):
 
         text = self.view.substr(region)
 
-        if self.file_name:
+        if self.file_name and complete:
+            temporal = self.file_name
+        elif self.file_name:
             temporal = os.path.join(
                 os.path.dirname(self.file_name), "st-format-tmp-" + str(Globals.temp)
             )
@@ -271,9 +265,10 @@ class Format(threading.Thread):
                 delete=False, suffix="." + self.formatter["extensions"][0]
             ).name
 
-        with open(temporal, "wb") as f:
-            f.write(bytes(text, "UTF-8"))
-            f.close()
+        if temporal != self.file_name:
+            with open(temporal, "wb") as f:
+                f.write(bytes(text, "UTF-8"))
+                f.close()
         if platform.system() == "Windows" or os.name == "nt":
             command = "type"
         else:
@@ -299,13 +294,17 @@ class Format(threading.Thread):
                     self.view.settings().set(
                         "format_live_change_count", self.change_count
                     )
+                    point = self.view.line(self.view.visible_region().a).b
+
                     selections = list(self.view.sel())
+
                     with Edit(self.view) as edit:
                         edit.replace(region, new_text)
                         self.success(p)
                     self.view.sel().clear()
                     for sel in selections:
                         self.view.sel().add(sel)
+                    self.view.show(point, False)
                 else:
                     if Globals.debug:
                         self.print("Code changed since the time we started formatting")
@@ -314,7 +313,7 @@ class Format(threading.Thread):
                     self.print("Code didn't change, skipping")
                     self.success(p)
         try:
-            if temporal:
+            if temporal and temporal != self.file_name:
                 os.unlink(temporal)
         except:
             pass

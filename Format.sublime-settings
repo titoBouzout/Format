@@ -7,38 +7,32 @@
 		{
 			"syntax contains": ["javascript"],
 			"extensions": ["jsx", "js"], // used when the file is not saved or when the extensions mismatches
-			"write": ["prettier", "--write", "--", "$FILE"],
 			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
 		},
 		{
 			"syntax contains": ["json"],
 			"extensions": ["json", "sublime-menu", "sublime-settings", "sublime-commands"],
-			"write": ["prettier", "--write", "--", "$FILE"],
 			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
 		},
 		{
 			"syntax contains": ["css"],
 			"extensions": ["css"],
-			"write": ["prettier", "--write", "--", "$FILE"],
 			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
 		},
 		{
 			"syntax contains": ["php"],
 			"extensions": ["php"],
-			"write": ["prettier", "--write", "--", "$FILE"],
 			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
 		},
 		{
 			"syntax contains": ["python"],
 			"extensions": ["py"],
-			"write": ["black", "--", "$FILE"],
 			"stdout": ["black", "-"]
 		},
 
 		{
 			"syntax contains": ["html"],
 			"extensions": ["html"],
-			"write": ["js-beautify", "-r", "--", "$FILE"],
 			"stdout": ["js-beautify", "--type=html", "-"]
 		},
 		{
