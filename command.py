@@ -239,8 +239,11 @@ class Format(threading.Thread):
         else:
             new_text = p["stdout"].decode("utf8")
 
-            if new_text != text and text != "":
-                if self.view.change_count() == self.change_count:
+            if new_text != text:
+                if new_text == "":
+                    if Globals.debug:
+                        self.print("Formatted code is empty")
+                elif self.view.change_count() == self.change_count:
                     self.change_count += 1
 
                     point = self.view.line(self.view.visible_region().a).b
