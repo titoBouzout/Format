@@ -1,5 +1,4 @@
 {
-	"live": false,
 	"on_save": true,
 
 	"formatters": [
@@ -7,7 +6,8 @@
 		{
 			"syntax contains": ["javascript"],
 			"extensions": ["jsx", "js"], // used when the file is not saved or when the extensions mismatches
-			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
+			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"],
+			"default": true
 		},
 		{
 			"syntax contains": ["json"],

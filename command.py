@@ -26,8 +26,6 @@ Globals.formatters = []
 
 Globals.on_save = False
 Globals.on_save_no_format = False
-Globals.live = False
-Globals.delay = 3
 
 Globals.binary_file_patterns = []
 
@@ -42,8 +40,6 @@ def plugin_loaded():
     s.add_on_change("format_reload", lambda: plugin_loaded())
     Globals.formatters = s.get("formatters", Globals.formatters)
     Globals.on_save = s.get("on_save", Globals.on_save)
-    Globals.live = s.get("live", Globals.live)
-    Globals.delay = s.get("delay", Globals.delay)
 
     s = sublime.load_settings("Preferences.sublime-settings")
     s.clear_on_change("format_reload_st")
@@ -65,7 +61,9 @@ class format_code_on_save(sublime_plugin.EventListener):
 class format_code_on_save_no_format(sublime_plugin.WindowCommand):
     def run(self):
         Globals.on_save_no_format = True
-        sublime.active_window().active_view().run_command("save")
+        sublime.set_timeout(
+            lambda: sublime.active_window().active_view().run_command("save"), 0
+        )
 
 
 # from command palette (for selections or complete document)
@@ -85,56 +83,12 @@ class format_on_save_toggle(sublime_plugin.WindowCommand):
         sublime.save_settings("Format.sublime-settings")
 
 
-class format_live_toggle(sublime_plugin.WindowCommand):
-    def run(self):
-        Globals.live = not Globals.live
-        s = sublime.load_settings("Format.sublime-settings")
-        s.set("live", Globals.live)
-        sublime.save_settings("Format.sublime-settings")
-
-
-# live formatting
-
-
-class modified(sublime_plugin.EventListener):
-    def on_selection_modified(self, view):
-        if view and Globals.live:
-            settings = view.settings()
-            if not settings.get("is_widget"):
-                settings.set("format_live_time", time.time())
-
-
-def format_code_live_loop():
-    while True:
-        if Globals.live:
-            view = sublime.active_window().active_view()
-            settings = view.settings()
-
-            if (
-                view
-                and settings.get("format_live_change_count", 0) != view.change_count()
-                and time.time() - settings.get("format_live_time", 0) > Globals.delay
-            ):
-                settings.set("format_live_change_count", view.change_count())
-                settings.set("format_live_time", time.time())
-
-                Format(view, False, True, False).run()
-        time.sleep(Globals.delay)
-
-
-if not "format_code_live_loop_running" in globals():
-    global format_code_live_loop_running
-    format_code_live_loop_running = True
-    thread.start_new_thread(format_code_live_loop, ())
-
-
 class Format(threading.Thread):
-    def __init__(self, view, from_save=False, from_live=False, threaded=True):
+    def __init__(self, view, from_save=False):
         self.view = view
         self.file_name = view.file_name() or ""
         self.change_count = view.change_count()
         self.from_save = from_save
-        self.from_live = from_live
         self.syntax = ""
 
         self.command = None
@@ -168,14 +122,19 @@ class Format(threading.Thread):
                             self.formatter = item
                             break
 
+        if not self.formatter:
+            for item in Globals.formatters:
+                if not self.formatter and "default" in item:
+                    self.formatter = item
+                    break
+
         for item in Globals.binary_file_patterns:
             if item in self.file_name:
                 if Globals.debug:
                     self.print("Matched binary", item, "in", self.file_name)
                 self.binary = True
 
-        if threaded:
-            threading.Thread.__init__(self)
+        threading.Thread.__init__(self)
 
     def run(self):
 
@@ -203,12 +162,7 @@ class Format(threading.Thread):
                 self.file_name
                 and self.file_extension
                 in [ext.lower() for ext in self.formatter["extensions"]]
-                and (
-                    self.from_save
-                    or (
-                        not self.from_live and sel_is_empty and not self.view.is_dirty()
-                    )
-                )
+                and (self.from_save or (sel_is_empty and not self.view.is_dirty()))
             ):
                 if Globals.debug:
                     self.print("Formatting from complete document")
@@ -217,17 +171,13 @@ class Format(threading.Thread):
                     self.view.is_dirty()
                     and self.view.change_count() == self.change_count
                 ):
-                    self.view.run_command("save")
-            elif (
-                self.from_save
-                or (self.from_live and sel_is_empty)
-                or (not self.from_live and sel_is_empty)
-            ):
+                    sublime.set_timeout(lambda: self.view.run_command("save"), 0)
+            elif self.from_save or (sel_is_empty):
                 if Globals.debug:
                     self.print("Formatting from complete document")
                 self.format_region(sublime.Region(0, self.view.size()), True)
 
-            elif not self.from_live:
+            else:
                 if Globals.debug:
                     self.print("Formatting selections")
                 for region in sel:
@@ -288,12 +238,11 @@ class Format(threading.Thread):
             self.error(p)
         else:
             new_text = p["stdout"].decode("utf8")
-            if new_text != text:
+
+            if new_text != text and text != "":
                 if self.view.change_count() == self.change_count:
                     self.change_count += 1
-                    self.view.settings().set(
-                        "format_live_change_count", self.change_count
-                    )
+
                     point = self.view.line(self.view.visible_region().a).b
 
                     selections = list(self.view.sel())

@@ -6,9 +6,5 @@
 	{
 		"caption": "Format Code: Toggle Format On Save",
 		"command": "format_on_save_toggle"
-	},
-	{
-		"caption": "Format Code: Toggle Format Live",
-		"command": "format_live_toggle"
 	}
 ]
