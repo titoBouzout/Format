@@ -171,7 +171,8 @@ class Format(threading.Thread):
                     self.print("Formatting from complete document")
                 self.format_region(sublime.Region(0, self.view.size()), True)
                 if (
-                    self.view.is_dirty()
+                    self.from_save
+                    and self.view.is_dirty()
                     and self.view.change_count() == self.change_count
                 ):
                     sublime.set_timeout(lambda: self.view.run_command("save"), 0)
@@ -179,7 +180,12 @@ class Format(threading.Thread):
                 if Globals.debug:
                     self.print("Formatting from complete document")
                 self.format_region(sublime.Region(0, self.view.size()), True)
-
+                if (
+                    self.from_save
+                    and self.view.is_dirty()
+                    and self.view.change_count() == self.change_count
+                ):
+                    sublime.set_timeout(lambda: self.view.run_command("save"), 0)
             else:
                 if Globals.debug:
                     self.print("Formatting selections")
