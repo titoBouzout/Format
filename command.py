@@ -51,7 +51,7 @@ def plugin_loaded():
 
 # from save
 class format_code_on_save(sublime_plugin.EventListener):
-    def on_post_save_async(self, view):
+    def on_post_save(self, view):
         if Globals.on_save and not Globals.on_save_no_format:
             Format(view, True).start()
         Globals.on_save_no_format = False
@@ -61,9 +61,7 @@ class format_code_on_save(sublime_plugin.EventListener):
 class format_code_on_save_no_format(sublime_plugin.WindowCommand):
     def run(self):
         Globals.on_save_no_format = True
-        sublime.set_timeout(
-            lambda: sublime.active_window().active_view().run_command("save"), 0
-        )
+        sublime.active_window().active_view().run_command("save")
 
 
 # from command palette (for selections or complete document)
@@ -81,6 +79,9 @@ class format_on_save_toggle(sublime_plugin.WindowCommand):
         s = sublime.load_settings("Format.sublime-settings")
         s.set("on_save", Globals.on_save)
         sublime.save_settings("Format.sublime-settings")
+
+
+# format
 
 
 class Format(threading.Thread):
@@ -126,6 +127,8 @@ class Format(threading.Thread):
             for item in Globals.formatters:
                 if not self.formatter and "default" in item:
                     self.formatter = item
+                    if Globals.debug:
+                        self.print("Using default formatter")
                     break
 
         for item in Globals.binary_file_patterns:

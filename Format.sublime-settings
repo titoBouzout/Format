@@ -2,10 +2,10 @@
 	"on_save": true,
 
 	"formatters": [
-		// first will try to match a formater by extension and then if non found by syntax
+		// first will try to match by extension and then if not found by syntax
 		{
 			"syntax contains": ["javascript"],
-			"extensions": ["jsx", "js"], // used when the file is not saved or when the extensions mismatches
+			"extensions": ["jsx", "js"],
 			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"],
 			"default": true
 		},
@@ -22,6 +22,11 @@
 		{
 			"syntax contains": ["php"],
 			"extensions": ["php"],
+			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
+		},
+		{
+			"syntax contains": ["markdown"],
+			"extensions": ["md"],
 			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
 		},
 		{
