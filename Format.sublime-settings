@@ -6,13 +6,13 @@
 		{
 			"syntax contains": ["javascript"],
 			"extensions": ["jsx", "js"],
-			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"],
-			"default": true
+			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
 		},
 		{
 			"syntax contains": ["json"],
 			"extensions": ["json", "sublime-menu", "sublime-settings", "sublime-commands"],
-			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"]
+			"stdout": ["prettier", "--stdin-filepath", "$DUMMY_FILE_NAME"],
+			"default": true
 		},
 		{
 			"syntax contains": ["css"],
