@@ -31,7 +31,7 @@ Globals.binary_file_patterns = []
 
 Globals.temp = 0
 
-Globals.debug = False
+Globals.debug = True
 
 
 def plugin_loaded():
@@ -40,6 +40,7 @@ def plugin_loaded():
     s.add_on_change("format_reload", lambda: plugin_loaded())
     Globals.formatters = s.get("formatters", Globals.formatters)
     Globals.on_save = s.get("on_save", Globals.on_save)
+    Globals.debug = s.get("debug", Globals.debug)
 
     s = sublime.load_settings("Preferences.sublime-settings")
     s.clear_on_change("format_reload_st")
@@ -51,6 +52,11 @@ def plugin_loaded():
 
 # from save
 class format_code_on_save(sublime_plugin.EventListener):
+    def on_pre_save(self, view):
+        if "js" in view.file_name():
+            view.run_command("set_line_ending", {"type": "unix"})
+            view.run_command("unexpand_tabs", {"set_translate_tabs": True})
+
     def on_post_save(self, view):
         if Globals.on_save and not Globals.on_save_no_format:
             Format(view, True).start()
@@ -238,7 +244,11 @@ class Format(threading.Thread):
             if self.command[k] == "$FILE":
                 self.command[k] = temporal
             elif self.command[k] == "$DUMMY_FILE_NAME":
-                self.command[k] = "f." + self.formatter["extensions"][0]
+                self.command[k] = (
+                    os.path.dirname(self.file_name)
+                    + "/f."
+                    + self.formatter["extensions"][0]
+                )
             else:
                 self.command[k] = self.expand(self.command[k])
 
