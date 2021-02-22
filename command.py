@@ -54,8 +54,10 @@ def plugin_loaded():
 class format_code_on_save(sublime_plugin.EventListener):
     def on_pre_save(self, view):
         if "js" in view.file_name():
-            view.run_command("set_line_ending", {"type": "unix"})
-            view.run_command("unexpand_tabs", {"set_translate_tabs": True})
+            pass
+            # view.run_command("set_line_ending", {"type": "unix"})
+            # view.run_command("unexpand_tabs", {"set_translate_tabs": True})
+            # view.run_command("set_setting", {"setting": "tab_size", "value": 4})
 
     def on_post_save(self, view):
         if Globals.on_save and not Globals.on_save_no_format:
